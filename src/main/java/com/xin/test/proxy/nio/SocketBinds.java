@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.io.IOException;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -22,11 +23,15 @@ public class SocketBinds {
         socketBinds.add(new SocketBind(proxySocket, leftContent, requestDto));
     }
 
-    public synchronized void remove(SocketChannel socketChannel) {
+    public synchronized void remove(SocketChannel socketChannel) throws IOException {
         Iterator<SocketBind> iterator = socketBinds.iterator();
         while (iterator.hasNext()) {
             SocketBind socketBind = iterator.next();
             if (socketChannel.equals(socketBind.getProxySocket()) || socketChannel.equals(socketBind.getDestSocket())) {
+                socketBind.getDestSocket().close();
+                socketBind.getProxySocket().close();
+                System.out.println(System.currentTimeMillis() + "=====  1 " + socketBind.getDestSocket());
+                System.out.println(System.currentTimeMillis() + "=====  2 " + socketBind.getProxySocket());
                 iterator.remove();
                 return;
             }

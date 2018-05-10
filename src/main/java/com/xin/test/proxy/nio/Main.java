@@ -26,20 +26,30 @@ public class Main {
         serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
         serverSocketChannel.bind(new InetSocketAddress(8093));
         while (true) {
+//            System.out.println("等待伦旭中=== ");
             int select = selector.select();
+            System.out.println("等待伦旭中===2  " + selector.keys().size());
             if (select < 1) {
                 continue;
             }
+            System.out.println("轮训中..");
             Iterator<SelectionKey> selectionKeys = selector.selectedKeys().iterator();
             while (selectionKeys.hasNext()) {
                 SelectionKey selectionKey = selectionKeys.next();
+                if (!selectionKey.isValid()) {
+                    cancel(selectionKey, (SocketChannel) selectionKey.channel());
+                    selectionKeys.remove();
+                    continue;
+                }
                 if (selectionKey.isAcceptable()) {
                     System.out.println("isAcceptable");
                     SocketChannel socketChannel = ((ServerSocketChannel) selectionKey.channel()).accept();
                     socketChannel.configureBlocking(false);
-                    socketChannel.register(selector, SelectionKey.OP_WRITE | SelectionKey.OP_READ, true);
+                    socketChannel.register(selector, SelectionKey.OP_READ, true);
+                    System.out.println(System.currentTimeMillis() + "=====  accept " + socketChannel);
                 }
                 if (selectionKey.isConnectable()) {
+                    System.out.println("isConnectable");
                     SocketChannel channel = (SocketChannel) selectionKey.channel();
                     if (channel.isConnectionPending()) {
                         if (channel.finishConnect()) {
@@ -52,12 +62,15 @@ public class Main {
                                 System.out.println("暂时写进去  " + write + "   " + requestDto.getRequestLine());
                             }
                         } else {
-                            selectionKey.cancel();
+                            cancel(selectionKey, channel);
                         }
                     }
                 }
                 if (selectionKey.isReadable()) {
+                    System.out.println("isReadable");
                     SocketChannel channel = (SocketChannel) selectionKey.channel();
+                    System.out.println(System.currentTimeMillis() + "=====  isReadable " + channel);
+                    System.out.println(selectionKey.isReadable());
                     if (selectionKey.attachment().equals(true)) {
                         RequestDto requestDto = getRequestDto(channel);
                         if (requestDto != null) {
@@ -69,33 +82,38 @@ public class Main {
                             } catch (Exception e) {
                                 e.printStackTrace();
                                 System.err.println("无法连接, 拒绝");
-                                selectionKey.cancel();
                             }
                             System.out.println(socketChannel + " 准备连接 " + socketChannel.isConnected());
                             socketChannel.register(selector, SelectionKey.OP_READ | SelectionKey.OP_CONNECT, false);
+
+                            System.out.println("register " + socketChannel);
                             System.out.println(requestDto);
                             selectionKey.attach(false);
                             socketBinds.put(channel, socketChannel, requestDto);
+                        } else {
+                            cancel(selectionKey, channel);
                         }
                     } else {
                         SocketChannel channel1 = socketBinds.findByEach(channel);
                         if (channel1 == null) {
-                            selectionKey.cancel();
+                            if (socketBinds.findRequestByEach(channel) != null) {
+                                System.out.println("cancel " + socketBinds.findRequestByEach(channel).getRequestLine());
+                            }
 
                         } else {
                             if (channel1.isConnected()) {
                                 if (!readToWrite(channel, channel1)) {
                                     //如果是第一次就挂了
-                                    selectionKey.cancel();
-                                    socketBinds.remove(channel);
+                                    cancel(selectionKey, channel);
                                 }
                             } else {
                                 System.out.println(channel1 + " 还没准备好" + channel1.isConnected());
-                                Thread.sleep(1000);
+                                Thread.sleep(100);
                             }
                         }
 
                     }
+
                 }
                 selectionKeys.remove();
             }
@@ -104,11 +122,21 @@ public class Main {
 
     }
 
+    private static void cancel(SelectionKey selectionKey, SocketChannel channel) throws IOException {
+        if (selectionKey != null) {
+            selectionKey.cancel();
+        }
+        if (socketBinds.findRequestByEach(channel) != null)
+            System.out.println("cancel " + socketBinds.findRequestByEach(channel).getRequestLine());
+        socketBinds.remove(channel);
+
+    }
+
     private static boolean readToWrite(SocketChannel channel, SocketChannel channel1) {
         boolean isFirst = true;
         try {
             while (true) {
-                ByteBuffer allocate = ByteBuffer.allocate(2048);
+                ByteBuffer allocate = ByteBuffer.allocate(20048);
                 int read = channel.read(allocate);
 
                 if (read < 0) {
@@ -116,20 +144,22 @@ public class Main {
                     return !isFirst;
                 }
                 if (read == 0) {
-                    return false;
+                    return !isFirst;
                 }
                 int total = 0;
                 allocate.flip();
 
                 while (allocate.hasRemaining()) {
                     channel1.write(allocate);
+                    System.out.println("轮训中.......");
                 }
                 System.out.println(read + "  " + total + "  " + allocate.limit());
                 isFirst = false;
+                System.out.println("=====  read  " + socketBinds.findRequestByEach(channel).getUrl());
             }
         } catch (Exception e) {
             e.printStackTrace();
-            return true;
+            return false;
         }
     }
 
@@ -142,7 +172,9 @@ public class Main {
             allocate.put(eachByte.array(), eachByte.arrayOffset(), eachByte.position());
             content = new String(allocate.array(), allocate.arrayOffset(), allocate.position());
             if (content.contains("\r\n\r\n")) {
-                return new RequestDto(content);
+                RequestDto requestDto = new RequestDto(content);
+                System.out.println(System.currentTimeMillis() + "=====  content  " + requestDto.getUrl());
+                return requestDto;
             }
             if (read == -1) {
                 return null;
