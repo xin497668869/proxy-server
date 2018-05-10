@@ -26,7 +26,7 @@ public class Main {
         serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
         serverSocketChannel.bind(new InetSocketAddress(8093));
         while (true) {
-//            System.out.println("等待伦旭中=== ");
+
             int select = selector.select();
             System.out.println("等待伦旭中===2  " + selector.keys().size());
             if (select < 1) {
@@ -73,7 +73,16 @@ public class Main {
                     System.out.println(selectionKey.isReadable());
                     if (selectionKey.attachment().equals(true)) {
                         RequestDto requestDto = getRequestDto(channel);
+
                         if (requestDto != null) {
+
+                            if (requestDto.getMethod().equals("CONNECT")) {
+                                requestDto.setRequestLine(null);
+                                System.out.println("简历连接");
+                                channel.write(ByteBuffer.wrap("HTTP/1.1 200 Connection Established\r\n\r\n".getBytes()));
+                            }
+
+
                             SocketChannel socketChannel = SocketChannel.open();
                             socketChannel.configureBlocking(false);
                             System.out.println(requestDto);
@@ -90,6 +99,7 @@ public class Main {
                             System.out.println(requestDto);
                             selectionKey.attach(false);
                             socketBinds.put(channel, socketChannel, requestDto);
+
                         } else {
                             cancel(selectionKey, channel);
                         }
