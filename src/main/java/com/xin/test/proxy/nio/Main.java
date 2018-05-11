@@ -28,7 +28,7 @@ public class Main {
         while (true) {
 
             int select = selector.select();
-            System.out.println("等待伦旭中===2  " + selector.keys().size());
+            System.out.println("等待伦旭中===2  " + selector.keys().size() + "  " + Thread.activeCount());
             if (select < 1) {
                 continue;
             }
@@ -174,7 +174,7 @@ public class Main {
     }
 
     private static RequestDto getRequestDto(SocketChannel channel) throws IOException {
-        ByteBuffer allocate = ByteBuffer.allocate(1000);
+        ByteBuffer allocate = ByteBuffer.allocate(2048);
         String content = "";
         while (content.indexOf("\r\n\r\n") < 0) {
             ByteBuffer eachByte = ByteBuffer.allocate(1);
